@@ -11,6 +11,8 @@ import { NotFoundError } from "../../../common/errors";
 import { Match } from "@ethereum-sourcify/lib-sourcify";
 import logger from "../../../common/logger";
 import { Services } from "../../services/services";
+import { whatsabi } from "@shazow/whatsabi";
+import { JsonRpcProvider } from "ethers";
 
 type RetrieveMethod = (
   services: Services,
@@ -122,9 +124,19 @@ export async function checkAllByChainAndAddressEndpoint(
         );
         if (found.length != 0) {
           if (!map.has(address)) {
+            const provider = new JsonRpcProvider("https://eth.llamarpc.com")
+            // TODO! add useful logging if the proxy option is enabled on the request
+            
+            const result = await whatsabi.autoload(address, {provider})
+            
+            if (result.address !== address) console.log(`Resolved proxy: ${address} -> ${result.address}`);
+            if (result.proxies.length > 0) console.log("Proxies detected:", result.proxies);
+            const impl = await result.proxies[0].resolve(provider, address)
             map.set(address, {
               address,
               chainIds: [],
+              proxies: result.proxies,
+              implementation: impl
             });
           }
 
@@ -133,6 +145,7 @@ export async function checkAllByChainAndAddressEndpoint(
             .chainIds.push({ chainId, status: found[0].runtimeMatch });
         }
       } catch (error) {
+        console.log(error)
         // ignore
       }
     }
@@ -193,7 +206,15 @@ export async function checkByChainAndAddressesEnpoint(
         );
         if (found.length != 0) {
           if (!map.has(address)) {
-            map.set(address, { address, status: "perfect", chainIds: [] });
+            const provider = new JsonRpcProvider("https://eth.llamarpc.com")
+            
+            
+            const result = await whatsabi.autoload(address, {provider})
+            
+            if (result.address !== address) console.log(`Resolved proxy: ${address} -> ${result.address}`);
+            if (result.proxies.length > 0) console.log("Proxies detected:", result.proxies);
+
+            map.set(address, { address, status: "perfect", chainIds: [], proxies: result.proxies });
           }
 
           map.get(address).chainIds.push(chainId);
